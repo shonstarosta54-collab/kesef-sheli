@@ -201,6 +201,7 @@ header{display:flex; align-items:center; justify-content:space-between; gap:8px;
 .exp-cat{font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .exp-note{font-size:.8rem; color:var(--muted)}
 .exp-amount{font-weight:700; font-variant-numeric:tabular-nums; color:var(--warn); white-space:nowrap}
+.exp-amount.income{color:var(--good)}
 .exp-del{color:var(--muted); font-size:1.05rem; padding:6px}
 .exp-del:hover{color:var(--warn)}
 .confirming{color:var(--warn) !important; font-weight:700}
@@ -282,6 +283,11 @@ header{display:flex; align-items:center; justify-content:space-between; gap:8px;
   </section>
 
   <section class="card">
+    <h2>💵 הכנסות <span class="hint" id="incHint"></span> <button class="add-btn" id="addIncBtn">+ הכנסה</button></h2>
+    <div id="incContainer"></div>
+  </section>
+
+  <section class="card">
     <h2>💸 הוצאות <span class="hint" id="expHint"></span> <button class="add-btn" id="addExpBtn">+ הוצאה</button></h2>
     <div id="expContainer"></div>
   </section>
@@ -331,14 +337,21 @@ const CATEGORIES=[
 ];
 const catInfo=k=>CATEGORIES.find(c=>c[0]===k)||CATEGORIES[CATEGORIES.length-1];
 
+const INCOME_SOURCES=[
+ ['work','עבודה / משמרת','💼'],['allowance','דמי כיס','🏠'],['gift','מתנה','🎁'],
+ ['sale','מכירה','🏷️'],['tutoring','שיעורים פרטיים','📖'],['other','אחר','✨'],
+];
+const srcInfo=k=>INCOME_SOURCES.find(c=>c[0]===k)||INCOME_SOURCES[INCOME_SOURCES.length-1];
+
 const KEY='kesef-sheli-v1';
 let state=load();
 function load(){
   let s=null;
   try{const raw=localStorage.getItem(KEY); if(raw){const p=JSON.parse(raw); if(p&&p.goals)s=p;}}catch(e){}
-  if(!s)s={goals:[],expenses:[],deposits:[],updatedAt:0};
+  if(!s)s={goals:[],expenses:[],income:[],deposits:[],updatedAt:0};
   if(!Array.isArray(s.goals))s.goals=[];
   if(!Array.isArray(s.expenses))s.expenses=[];
+  if(!Array.isArray(s.income))s.income=[];
   if(!Array.isArray(s.deposits))s.deposits=[];
   return s;
 }
@@ -357,7 +370,7 @@ const money=n=>Math.round(n).toLocaleString('he-IL');
 const $=id=>document.getElementById(id);
 
 function render(){
-  renderHero(); renderGoals(); renderExpenses(); renderCatBreakdown(); renderChart();
+  renderHero(); renderGoals(); renderIncome(); renderExpenses(); renderCatBreakdown(); renderChart();
 }
 
 function totalSaved(){return state.goals.reduce((s,g)=>s+g.current,0);}
@@ -365,16 +378,22 @@ function monthExpenses(ym){
   ym=ym||todayStr().slice(0,7);
   return state.expenses.filter(e=>e.date.startsWith(ym));
 }
+function monthIncome(ym){
+  ym=ym||todayStr().slice(0,7);
+  return state.income.filter(e=>e.date.startsWith(ym));
+}
 
 function renderHero(){
   $('heroTotal').textContent=money(totalSaved());
   const chips=$('heroChips'); chips.innerHTML='';
+  const earned=monthIncome().reduce((s,e)=>s+e.amount,0);
   const spent=monthExpenses().reduce((s,e)=>s+e.amount,0);
+  const net=earned-spent;
   const mk=(html,warn)=>{const s=document.createElement('span');s.className='hchip'+(warn?' warn-chip':'');s.innerHTML=html;chips.appendChild(s);};
+  mk('💵 החודש הרווחתי <b>₪'+money(earned)+'</b>');
   mk('💸 החודש הוצאתי <b>₪'+money(spent)+'</b>');
+  mk((net>=0?'✅ נטו החודש <b>+₪'+money(net)+'</b>':'⚠️ נטו החודש <b>-₪'+money(Math.abs(net))+'</b>'),net<0);
   mk('🎯 <b>'+state.goals.length+'</b> יעדים פעילים');
-  const days=new Set([...state.expenses.map(e=>e.date),...state.deposits.map(d=>d.date)]).size;
-  if(days>0)mk('🔥 <b>'+days+'</b> ימי רישום סה"כ');
 }
 
 function goalProjection(g){
@@ -433,6 +452,39 @@ function renderGoals(){
     });
     act.append(dep,del); el.appendChild(act);
     box.appendChild(el);
+  }
+}
+
+function renderIncome(){
+  const box=$('incContainer');
+  box.innerHTML='';
+  $('incHint').textContent=state.income.length?state.income.length+' רישומים':'';
+  const sorted=[...state.income].sort((a,b)=>b.date<a.date?-1:(b.date>a.date?1:b.id<a.id?-1:1)).slice(0,60);
+  if(!sorted.length){
+    box.innerHTML='<div class="empty-note">עדיין אין הכנסות רשומות — הוסיפו כל פעם שמרוויחים כסף</div>';
+    return;
+  }
+  let lastDate=null;
+  for(const e of sorted){
+    if(e.date!==lastDate){
+      const lbl=document.createElement('div'); lbl.className='day-label';
+      lbl.textContent=e.date===todayStr()?'היום':heDate(e.date);
+      box.appendChild(lbl); lastDate=e.date;
+    }
+    const c=srcInfo(e.source);
+    const row=document.createElement('div'); row.className='exp-row';
+    row.innerHTML='<span class="exp-icon"></span><div class="exp-info"><div class="exp-cat"></div><div class="exp-note"></div></div><span class="exp-amount income"></span>';
+    row.querySelector('.exp-icon').textContent=c[2];
+    row.querySelector('.exp-cat').textContent=c[1];
+    row.querySelector('.exp-note').textContent=e.note||'';
+    row.querySelector('.exp-amount').textContent='+₪'+money(e.amount);
+    const del=document.createElement('button'); del.className='exp-del'; del.textContent='✕'; del.title='מחיקה';
+    del.onclick=()=>twoTap(del,'למחוק?',()=>{
+      state.income=state.income.filter(x=>x.id!==e.id); save(); render();
+      toast('ההכנסה נמחקה');
+    });
+    row.appendChild(del);
+    box.appendChild(row);
   }
 }
 
@@ -610,7 +662,37 @@ function openExpenseModal(){
   setTimeout(()=>$('eAmt').focus(),50);
 }
 
+function openIncomeModal(){
+  const ov=document.createElement('div'); ov.className='overlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const sh=document.createElement('div'); sh.className='sheet';
+  sh.innerHTML='<button class="sheet-close">✕</button><h3>💵 הוספת הכנסה</h3>'+
+    '<div class="field"><span>כמה הרווחתם? (₪)</span><input type="number" id="iAmt" min="1" placeholder="0" class="amount-input"></div>'+
+    '<div class="field"><span>ממה?</span><div class="chips" id="srcChips"></div></div>'+
+    '<div class="field"><span>הערה (אופציונלי)</span><input type="text" id="iNote" placeholder="פרטים נוספים" maxlength="60"></div>'+
+    '<div class="actions"><button class="btn" id="iSave" disabled>שמירה</button><button class="btn ghost" id="iCancel">ביטול</button></div>';
+  ov.appendChild(sh); document.body.appendChild(ov);
+  sh.querySelector('.sheet-close').onclick=()=>ov.remove();
+  $('iCancel').onclick=()=>ov.remove();
+  let src=INCOME_SOURCES[0][0];
+  const sc=$('srcChips');
+  INCOME_SOURCES.forEach(([k,l,ic])=>{
+    const c=document.createElement('button'); c.className='chip'+(k===src?' sel':''); c.textContent=ic+' '+l;
+    c.onclick=()=>{src=k;sc.querySelectorAll('.chip').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');};
+    sc.appendChild(c);
+  });
+  $('iAmt').oninput=()=>{$('iSave').disabled=!(+$('iAmt').value>0);};
+  $('iSave').onclick=()=>{
+    const amt=+$('iAmt').value;
+    state.income.push({id:'i'+Date.now(),amount:amt,source:src,note:$('iNote').value.trim(),date:todayStr()});
+    save(); ov.remove(); render();
+    toast('נרשמה הכנסה של ₪'+money(amt)+' 💵');
+  };
+  setTimeout(()=>$('iAmt').focus(),50);
+}
+
 $('addGoalBtn').onclick=openGoalModal;
+$('addIncBtn').onclick=openIncomeModal;
 $('addExpBtn').onclick=openExpenseModal;
 
 $('exportBtn').onclick=()=>{
@@ -630,6 +712,7 @@ $('importFile').addEventListener('change',e=>{
       if(!s||!Array.isArray(s.goals))throw 0;
       state=s;
       if(!Array.isArray(state.expenses))state.expenses=[];
+      if(!Array.isArray(state.income))state.income=[];
       if(!Array.isArray(state.deposits))state.deposits=[];
       save(); render();
       toast('הגיבוי שוחזר בהצלחה ✓');
@@ -681,6 +764,7 @@ async function fetchRemote(){
 function ensureShape(s){
   if(!Array.isArray(s.goals))s.goals=[];
   if(!Array.isArray(s.expenses))s.expenses=[];
+  if(!Array.isArray(s.income))s.income=[];
   if(!Array.isArray(s.deposits))s.deposits=[];
   return s;
 }
