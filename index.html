@@ -283,31 +283,20 @@ header{display:flex; align-items:center; justify-content:space-between; gap:8px;
 .welcome-overlay{
   position:fixed; inset:0; z-index:60; padding:24px; display:flex; align-items:center; justify-content:center;
   background:
-    radial-gradient(600px 360px at 50% 0%, rgba(232,184,77,.10), transparent 65%),
-    radial-gradient(500px 300px at 15% 100%, rgba(77,217,160,.06), transparent 65%),
+    radial-gradient(700px 420px at 50% 8%, rgba(232,184,77,.11), transparent 65%),
+    radial-gradient(500px 320px at 12% 95%, rgba(77,217,160,.07), transparent 65%),
     var(--bg);
-  animation:welcome-in .35s ease;
+  animation:welcome-in .4s ease;
 }
 @keyframes welcome-in{from{opacity:0}to{opacity:1}}
-.welcome-card{max-width:400px; width:100%; text-align:center}
-.welcome-icon{
-  font-size:3.6rem; margin-bottom:10px; display:inline-block;
-  filter:drop-shadow(0 0 18px rgba(232,184,77,.4));
-}
+.welcome-card{max-width:380px; width:100%; text-align:center}
+.welcome-art{width:100%; max-width:260px; height:auto; margin:0 auto 8px; display:block}
 .welcome-title{
-  font-family:'Frank Ruhl Libre',serif; font-weight:800; font-size:1.65rem; line-height:1.25;
-  margin-bottom:8px; text-wrap:balance;
+  font-family:'Frank Ruhl Libre',serif; font-weight:800; font-size:1.75rem; line-height:1.25;
+  margin:18px 0 10px; text-wrap:balance;
 }
-.welcome-sub{color:var(--muted); font-size:.94rem; line-height:1.65; margin-bottom:24px}
-.welcome-features{display:flex; flex-direction:column; gap:9px; text-align:start; margin-bottom:26px}
-.wf-row{display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:11px 14px}
-.wf-icon{font-size:1.3rem; flex-shrink:0; width:26px; text-align:center}
-.wf-text b{display:block; font-weight:700; font-size:.9rem}
-.wf-text span{font-size:.78rem; color:var(--muted)}
-.welcome-actions{display:flex; flex-direction:column; gap:12px; align-items:center}
-.welcome-actions .btn{width:100%; padding:13px 20px; font-size:.98rem}
-.welcome-skip{color:var(--muted); font-size:.85rem; padding:4px; text-decoration:underline; text-underline-offset:3px}
-.welcome-skip:hover{color:var(--ink)}
+.welcome-sub{color:var(--muted); font-size:.96rem; line-height:1.65; margin-bottom:30px}
+.welcome-actions .btn{width:100%; padding:14px 20px; font-size:1rem}
 </style>
 </head>
 <body>
@@ -1005,34 +994,37 @@ const ONBOARD_KEY='kesef-onboarded-v1';
 function isFreshState(){
   return !state.accounts.length&&!state.goals.length&&!state.expenses.length&&!state.income.length;
 }
+const WELCOME_ART=`<svg class="welcome-art" viewBox="0 0 260 190" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="wBar" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#8A5A00"/><stop offset="1" stop-color="#E8B84D"/>
+    </linearGradient>
+    <radialGradient id="wCoin" cx="42%" cy="38%" r="62%">
+      <stop offset="0" stop-color="#F6D48A"/><stop offset="45%" stop-color="#F0C465"/>
+      <stop offset="100%" stop-color="#C99A2E"/>
+    </radialGradient>
+  </defs>
+  <line x1="14" y1="162" x2="246" y2="162" stroke="#232B3A" stroke-width="2"/>
+  <rect x="26" y="128" width="26" height="34" rx="7" fill="url(#wBar)" opacity=".5"/>
+  <rect x="66" y="100" width="26" height="62" rx="7" fill="url(#wBar)" opacity=".68"/>
+  <rect x="106" y="72" width="26" height="90" rx="7" fill="url(#wBar)" opacity=".85"/>
+  <rect x="146" y="46" width="26" height="116" rx="7" fill="url(#wBar)"/>
+  <circle cx="201" cy="50" r="36" fill="url(#wCoin)" style="filter:drop-shadow(0 0 16px rgba(232,184,77,.5))"/>
+  <circle cx="201" cy="50" r="36" fill="none" stroke="#7A5410" stroke-width="2" opacity=".35"/>
+  <text x="201" y="62" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="32" fill="#3A2A10">₪</text>
+  <circle cx="232" cy="14" r="3.2" fill="#F0C465"/>
+  <circle cx="52" cy="34" r="2.6" fill="#4DD9A0" opacity=".75"/>
+  <circle cx="243" cy="86" r="2.2" fill="#F0C465" opacity=".6"/>
+</svg>`;
 function showWelcome(){
   const ov=document.createElement('div'); ov.className='welcome-overlay';
-  const features=[
-    ['💰','הנכסים שלי','מזומן, בנק והשקעות — במקום אחד'],
-    ['🎯','יעדים','חסכו לרכב, לטיול, או לכל דבר שרוצים'],
-    ['💵','הכנסות והוצאות','עקבו אחרי כל שקל שנכנס ויוצא'],
-    ['📈','גרפים','ראו את ההתקדמות שלכם לאורך זמן'],
-  ];
   const card=document.createElement('div'); card.className='welcome-card';
-  card.innerHTML='<div class="welcome-icon">💰</div>'+
+  card.innerHTML=WELCOME_ART+
     '<div class="welcome-title">היי! ברוכים הבאים ל״הכסף שלי״</div>'+
     '<div class="welcome-sub">כאן תעקבו אחרי הכסף שלכם — מאיפה הוא מגיע, לאן הוא הולך, ולאן הוא חוסך.</div>'+
-    '<div class="welcome-features" id="wfList"></div>'+
-    '<div class="welcome-actions"><button class="btn" id="wStart">בואו נתחיל — הוספת החשבון הראשון</button>'+
-    '<button class="welcome-skip" id="wSkip">דלגו, אני אסתכל קודם</button></div>';
+    '<div class="welcome-actions"><button class="btn" id="wStart">בואו נתחיל</button></div>';
   ov.appendChild(card); document.body.appendChild(ov);
-  const list=card.querySelector('#wfList');
-  for(const [ic,t,s] of features){
-    const r=document.createElement('div'); r.className='wf-row';
-    r.innerHTML='<span class="wf-icon"></span><span class="wf-text"><b></b><span></span></span>';
-    r.querySelector('.wf-icon').textContent=ic;
-    r.querySelector('b').textContent=t;
-    r.querySelector('.wf-text span').textContent=s;
-    list.appendChild(r);
-  }
-  const dismiss=()=>{localStorage.setItem(ONBOARD_KEY,'1'); ov.remove();};
-  card.querySelector('#wStart').onclick=()=>{dismiss(); openAccountModal();};
-  card.querySelector('#wSkip').onclick=dismiss;
+  card.querySelector('#wStart').onclick=()=>{localStorage.setItem(ONBOARD_KEY,'1'); ov.remove();};
 }
 
 render();
