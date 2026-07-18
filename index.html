@@ -191,6 +191,24 @@ header{display:flex; align-items:center; justify-content:space-between; gap:8px;
 .goal-actions button.del:hover{color:var(--warn)}
 .empty-note{color:var(--muted); font-size:.88rem; padding:6px 0}
 
+/* accounts */
+.acct{display:flex; align-items:center; gap:12px; background:var(--chip); border-radius:14px; padding:12px 14px; margin-bottom:10px}
+.acct:last-child{margin-bottom:0}
+.acct-icon{font-size:1.4rem; width:38px; height:38px; border-radius:11px; background:var(--card); display:grid; place-items:center; flex-shrink:0}
+.acct-info{flex:1; min-width:0}
+.acct-name{font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.acct-type{font-size:.78rem; color:var(--muted)}
+.acct-balance{font-weight:800; font-variant-numeric:tabular-nums; font-family:'Frank Ruhl Libre',serif; font-size:1.15rem; white-space:nowrap}
+.acct-edit{color:var(--muted); font-size:1rem; padding:6px}
+.acct-edit:hover{color:var(--accent)}
+.acct-del{color:var(--muted); font-size:1.05rem; padding:6px}
+.acct-del:hover{color:var(--warn)}
+.acct-total{
+  display:flex; justify-content:space-between; align-items:baseline; padding-top:10px; margin-top:2px;
+  border-top:1px dashed var(--line); font-size:.9rem; color:var(--muted);
+}
+.acct-total b{color:var(--accent); font-family:'Frank Ruhl Libre',serif; font-size:1.1rem; font-variant-numeric:tabular-nums}
+
 /* expenses */
 .exp-row{display:flex; align-items:center; gap:12px; padding:9px 0; border-top:1px solid var(--line)}
 .exp-icon{
@@ -278,6 +296,11 @@ header{display:flex; align-items:center; justify-content:space-between; gap:8px;
   </section>
 
   <section class="card">
+    <h2>💰 הנכסים שלי <span class="hint" id="acctHint"></span> <button class="add-btn" id="addAcctBtn">+ חשבון</button></h2>
+    <div id="acctContainer"></div>
+  </section>
+
+  <section class="card">
     <h2>🎯 יעדים <span class="hint" id="goalsHint"></span> <button class="add-btn" id="addGoalBtn">+ יעד חדש</button></h2>
     <div id="goalsContainer"></div>
   </section>
@@ -343,16 +366,22 @@ const INCOME_SOURCES=[
 ];
 const srcInfo=k=>INCOME_SOURCES.find(c=>c[0]===k)||INCOME_SOURCES[INCOME_SOURCES.length-1];
 
+const ACCOUNT_TYPES=[
+ ['cash','מזומן','💵'],['bank','בנק','🏦'],['invest','השקעות','📈'],['other','אחר','💳'],
+];
+const typeInfo=k=>ACCOUNT_TYPES.find(c=>c[0]===k)||ACCOUNT_TYPES[ACCOUNT_TYPES.length-1];
+
 const KEY='kesef-sheli-v1';
 let state=load();
 function load(){
   let s=null;
   try{const raw=localStorage.getItem(KEY); if(raw){const p=JSON.parse(raw); if(p&&p.goals)s=p;}}catch(e){}
-  if(!s)s={goals:[],expenses:[],income:[],deposits:[],updatedAt:0};
+  if(!s)s={goals:[],expenses:[],income:[],deposits:[],accounts:[],updatedAt:0};
   if(!Array.isArray(s.goals))s.goals=[];
   if(!Array.isArray(s.expenses))s.expenses=[];
   if(!Array.isArray(s.income))s.income=[];
   if(!Array.isArray(s.deposits))s.deposits=[];
+  if(!Array.isArray(s.accounts))s.accounts=[];
   return s;
 }
 function save(){
@@ -370,10 +399,11 @@ const money=n=>Math.round(n).toLocaleString('he-IL');
 const $=id=>document.getElementById(id);
 
 function render(){
-  renderHero(); renderGoals(); renderIncome(); renderExpenses(); renderCatBreakdown(); renderChart();
+  renderHero(); renderAccounts(); renderGoals(); renderIncome(); renderExpenses(); renderCatBreakdown(); renderChart();
 }
 
 function totalSaved(){return state.goals.reduce((s,g)=>s+g.current,0);}
+function totalAssets(){return state.accounts.reduce((s,a)=>s+a.balance,0);}
 function monthExpenses(ym){
   ym=ym||todayStr().slice(0,7);
   return state.expenses.filter(e=>e.date.startsWith(ym));
@@ -390,10 +420,42 @@ function renderHero(){
   const spent=monthExpenses().reduce((s,e)=>s+e.amount,0);
   const net=earned-spent;
   const mk=(html,warn)=>{const s=document.createElement('span');s.className='hchip'+(warn?' warn-chip':'');s.innerHTML=html;chips.appendChild(s);};
+  if(state.accounts.length)mk('💰 בחשבונות <b>₪'+money(totalAssets())+'</b>');
   mk('💵 החודש הרווחתי <b>₪'+money(earned)+'</b>');
   mk('💸 החודש הוצאתי <b>₪'+money(spent)+'</b>');
   mk((net>=0?'✅ נטו החודש <b>+₪'+money(net)+'</b>':'⚠️ נטו החודש <b>-₪'+money(Math.abs(net))+'</b>'),net<0);
   mk('🎯 <b>'+state.goals.length+'</b> יעדים פעילים');
+}
+
+function renderAccounts(){
+  const box=$('acctContainer');
+  box.innerHTML='';
+  $('acctHint').textContent=state.accounts.length?state.accounts.length+' חשבונות':'';
+  if(!state.accounts.length){
+    box.innerHTML='<div class="empty-note">הוסיפו את המזומן, הבנק וההשקעות שלכם כדי לראות כמה כסף יש לכם באמת</div>';
+    return;
+  }
+  for(const a of state.accounts){
+    const t=typeInfo(a.type);
+    const el=document.createElement('div'); el.className='acct';
+    el.innerHTML='<span class="acct-icon"></span><div class="acct-info"><div class="acct-name"></div><div class="acct-type"></div></div><span class="acct-balance"></span>';
+    el.querySelector('.acct-icon').textContent=a.icon||t[2];
+    el.querySelector('.acct-name').textContent=a.name;
+    el.querySelector('.acct-type').textContent=t[1];
+    el.querySelector('.acct-balance').textContent='₪'+money(a.balance);
+    const edit=document.createElement('button'); edit.className='acct-edit'; edit.textContent='✏️'; edit.title='עדכון יתרה';
+    edit.onclick=()=>openBalanceModal(a.id);
+    const del=document.createElement('button'); del.className='acct-del'; del.textContent='✕'; del.title='מחיקה';
+    del.onclick=()=>twoTap(del,'למחוק?',()=>{
+      state.accounts=state.accounts.filter(x=>x.id!==a.id); save(); render();
+      toast('"'+a.name+'" נמחק');
+    });
+    el.append(edit,del);
+    box.appendChild(el);
+  }
+  const tot=document.createElement('div'); tot.className='acct-total';
+  tot.innerHTML='<span>סה"כ נכסים</span><b>₪'+money(totalAssets())+'</b>';
+  box.appendChild(tot);
 }
 
 function goalProjection(g){
@@ -580,6 +642,53 @@ function renderChart(){
   note.textContent='סה"כ נחסך עד כה: ₪'+money(running);
 }
 
+/* ================= accounts ================= */
+function openAccountModal(){
+  const ov=document.createElement('div'); ov.className='overlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const sh=document.createElement('div'); sh.className='sheet';
+  sh.innerHTML='<button class="sheet-close">✕</button><h3>חשבון חדש</h3>'+
+    '<div class="field"><span>סוג</span><div class="chips" id="typeChips"></div></div>'+
+    '<div class="field"><span>שם (אופציונלי)</span><input type="text" id="aName" placeholder="למשל: הבנק שלי" maxlength="40"></div>'+
+    '<div class="field"><span>יתרה נוכחית (₪)</span><input type="number" id="aBal" min="0" placeholder="0" class="amount-input"></div>'+
+    '<div class="actions"><button class="btn" id="aSave">הוספה</button><button class="btn ghost" id="aCancel">ביטול</button></div>';
+  ov.appendChild(sh); document.body.appendChild(ov);
+  sh.querySelector('.sheet-close').onclick=()=>ov.remove();
+  $('aCancel').onclick=()=>ov.remove();
+  let type=ACCOUNT_TYPES[0][0];
+  const tc=$('typeChips');
+  ACCOUNT_TYPES.forEach(([k,l,ic])=>{
+    const c=document.createElement('button'); c.className='chip'+(k===type?' sel':''); c.textContent=ic+' '+l;
+    c.onclick=()=>{type=k;tc.querySelectorAll('.chip').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');};
+    tc.appendChild(c);
+  });
+  $('aSave').onclick=()=>{
+    const t=typeInfo(type);
+    const a={id:'a'+Date.now(),type,icon:t[2],name:$('aName').value.trim()||t[1],balance:+$('aBal').value||0};
+    state.accounts.push(a); save(); ov.remove(); render();
+    toast('"'+a.name+'" נוסף');
+  };
+}
+
+function openBalanceModal(accountId){
+  const a=state.accounts.find(x=>x.id===accountId); if(!a)return;
+  const ov=document.createElement('div'); ov.className='overlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const sh=document.createElement('div'); sh.className='sheet';
+  sh.innerHTML='<button class="sheet-close">✕</button><h3>עדכון יתרה — '+a.name+'</h3>'+
+    '<div class="field"><span>היתרה הנוכחית (₪)</span><input type="number" id="bBal" min="0" value="'+a.balance+'" class="amount-input"></div>'+
+    '<div class="actions"><button class="btn" id="bSave">עדכון</button><button class="btn ghost" id="bCancel">ביטול</button></div>';
+  ov.appendChild(sh); document.body.appendChild(ov);
+  sh.querySelector('.sheet-close').onclick=()=>ov.remove();
+  $('bCancel').onclick=()=>ov.remove();
+  $('bSave').onclick=()=>{
+    a.balance=+$('bBal').value||0;
+    save(); ov.remove(); render();
+    toast('היתרה עודכנה ל־₪'+money(a.balance));
+  };
+  setTimeout(()=>{const inp=$('bBal'); inp.focus(); inp.select();},50);
+}
+
 /* ================= add goal modal ================= */
 function openGoalModal(){
   const ov=document.createElement('div'); ov.className='overlay';
@@ -691,6 +800,7 @@ function openIncomeModal(){
   setTimeout(()=>$('iAmt').focus(),50);
 }
 
+$('addAcctBtn').onclick=openAccountModal;
 $('addGoalBtn').onclick=openGoalModal;
 $('addIncBtn').onclick=openIncomeModal;
 $('addExpBtn').onclick=openExpenseModal;
@@ -714,6 +824,7 @@ $('importFile').addEventListener('change',e=>{
       if(!Array.isArray(state.expenses))state.expenses=[];
       if(!Array.isArray(state.income))state.income=[];
       if(!Array.isArray(state.deposits))state.deposits=[];
+      if(!Array.isArray(state.accounts))state.accounts=[];
       save(); render();
       toast('הגיבוי שוחזר בהצלחה ✓');
     }catch(_){toast('הקובץ אינו גיבוי תקין');}
@@ -766,6 +877,7 @@ function ensureShape(s){
   if(!Array.isArray(s.expenses))s.expenses=[];
   if(!Array.isArray(s.income))s.income=[];
   if(!Array.isArray(s.deposits))s.deposits=[];
+  if(!Array.isArray(s.accounts))s.accounts=[];
   return s;
 }
 let syncTimer=null, syncBusy=false, lastPull=0;
